@@ -1,5 +1,7 @@
 ﻿# dsh-steam
 
+仓库：https://github.com/mjnn/dsh-steam
+
 给 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）用的 Steam 工具集。
 装好之后，父模型可以直接查价、查库、触发下载、盯折扣，不用再截图点鼠标。
 

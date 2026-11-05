@@ -16,6 +16,18 @@
     "README.md",
     "LICENSE"
   ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs && node test/selftest.mjs",
+    "release": "node tools/release.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mjnn/dsh-steam.git"
+  },
+  "homepage": "https://github.com/mjnn/dsh-steam#readme",
+  "bugs": {
+    "url": "https://github.com/mjnn/dsh-steam/issues"
+  },
   "keywords": [
     "dsh",
     "dsh-plugin",

@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22.x, 24.x]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      # 零依赖插件：不做 npm install；peer @deepseek-ai/dsh-tools 由 selftest 桩提供
+      - name: Syntax check lib/*.js
+        run: |
+          set -e
+          for f in lib/*.js; do
+            echo "node --check $f"
+            node --check "$f"
+          done
+
+      - name: Unit tests (dedupe)
+        run: node --test test/*.test.mjs
+
+      # 依赖公网商店接口；本机 Steam / API Key 缺失时 selftest 会显式 SKIP
+      - name: Selftest
+        run: node test/selftest.mjs

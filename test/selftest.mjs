@@ -117,10 +117,16 @@ async function main() {
   console.log(dry.summary);
   if (dry.launched !== false) throw new Error('演练模式不该真的启动');
 
-  // 4) steam_library 无 Key 时给出可读提示而不是抛错
+  // 4) steam_library：无 Key 时显式 SKIP（CI 场景）；不硬要求 ok=true
   const lib = await tools.get('steam_library').execute({}, {});
-  console.log('\n[steam_library 无 Key] ok=' + lib.ok);
+  console.log('\n[steam_library] ok=' + lib.ok);
   console.log(lib.summary.slice(0, 80));
+  const missingKey = !lib.ok && /API Key|DSH_STEAM_API_KEY/i.test(lib.summary ?? '');
+  if (missingKey) {
+    console.log('SKIP steam_library（未配置 Key）');
+  } else if (!lib.ok) {
+    console.log('WARN steam_library ok=false（有 Key 但仍失败，常见原因：资料未公开）');
+  }
 
   // 5) steam_search：名字 → appid
   const search = await tools.get('steam_search').execute({ query: '影之刃', limit: 3 }, {});
@@ -130,10 +136,11 @@ async function main() {
   if (!search.items.length) throw new Error('steam_search 没搜到结果');
   if (!search.items.some((i) => i.appid === 4115450)) throw new Error('steam_search 没返回影之刃零的 appid');
 
-  // 6) steam_download_status：纯本地读取
+  // 6) steam_download_status：纯本地读取；CI 无 Steam 时显式 SKIP，不硬要求 ok=true
   const dl = await tools.get('steam_download_status').execute({ top: 3 }, {});
   console.log('\n[steam_download_status] ok=' + dl.ok);
   if (!dl.ok) {
+    console.log('SKIP steam_download_status（本机无 Steam）');
     console.log(dl.summary);
   } else {
     console.log(dl.summary.split('\n').slice(0, 6).join('\n'));
