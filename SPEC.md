@@ -188,6 +188,19 @@
 - 无 Key → `ok:false` + 指引（不抛错）
 - 注意：未拥有的游戏也能查 schema（只要游戏有成就）
 
+### 3.20 `steam_recent`（v0.8.0，需 Key）
+- 数据源：`IPlayerService/GetRecentlyPlayedGames/v1/?key=<k>&steamid=<s>&count=<n>`
+- 入参：`steamid`（可省略，用 config）、`count`（integer，默认 10，上限 50）
+- 出参：`{ ok, steamid, totalCount, items[{appid, name, twoWeeksMinutes, totalMinutes, lastPlayed}] }`
+- 实测参考：近两周 `鬼武者 2.8 小时 / 影之刃零 0.8 小时`
+- 无 Key → `ok:false` + 指引；无最近游玩 → `ok:true` + `items:[]` + 说明
+
+### 3.21 `steam_level`（v0.8.0，需 Key）
+- 数据源：`IPlayerService/GetSteamLevel/v1/` + `IPlayerService/GetBadges/v1/`
+- 入参：`steamid`（可省略）
+- 出参：`{ ok, steamid, level, xp, badgeCount, badges[{badgeid, appid, level, xp}] }`（badges 最多 20 条）
+- 实测参考：等级 10 / 徽章 6 / 经验 1180
+
 ## 4. 价格历史存储
 
 - 默认路径：`~/.dsh/steam-price-history.json`

@@ -28,6 +28,8 @@
 | `steam_achievements` | 是 | 个人成就进度 |
 | `steam_wishlist` | 是 | 愿望单 + 补价 |
 | `steam_achievement_schema` | 是 | 成就内部名 → 中文名/描述 |
+| `steam_recent` | 是 | 近两周在玩与时长 |
+| `steam_level` | 是 | Steam 等级 / 经验 / 徽章 |
 
 价格历史默认写在 `~/.dsh/steam-price-history.json`，可用环境变量 `DSH_STEAM_HISTORY` 覆盖路径。
 它记录的是**本插件观测到的价格**，不是 Steam 官方历史数据；首次运行时没有基线，第一天的价格会被当作「史低」。
@@ -42,7 +44,7 @@
 2. 输入本仓库的**绝对路径**，或打好的包路径（把 `<repo>` 换成你本机的仓库根目录）：
    ```
    <repo>
-   <repo>\dsh-steam-0.7.0.tgz
+   <repo>\dsh-steam-0.8.0.tgz
    ```
 3. 确认识别到包名 `dsh-steam`，完成安装
 4. **重启 DSH** 让宿主加载插件

@@ -96,7 +96,7 @@ async function main() {
   const names = [...tools.keys()].sort();
   console.log('导出的插件名:', mod.name);
   console.log('注册的工具:', names.join(', '));
-  if (names.length !== 19) throw new Error('工具数量不对，期望 19 个（v0.7.0 新增 media/dlc/achievement_schema）');
+  if (names.length !== 21) throw new Error('工具数量不对，期望 21 个（v0.8.0 新增 recent/level）');
 
   // 1) steam_price 真跑
   const price = await tools.get('steam_price').execute({ appids: [730, 1245620] }, {});
@@ -233,12 +233,17 @@ async function main() {
   if (bad.ok !== false) throw new Error('非白名单域名必须拒绝');
   console.log('  非白名单被拒：' + bad.summary.slice(0, 40));
 
-  // 15) 三个需 Key 的工具：无 Key 时必须 ok:false 且给出指引（不强求成功）
+  // 15) friends/achievements/wishlist：无 Key → 指引；有 Key 但无 steamid → 也须可读失败（不抛错）
   for (const name of ['steam_friends', 'steam_achievements', 'steam_wishlist']) {
     const r = await tools.get(name).execute(name === 'steam_achievements' ? { appid: 730 } : {}, {});
     console.log('\n[' + name + '] ok=' + r.ok + ' :: ' + String(r.summary).slice(0, 50));
-    if (r.ok !== false) throw new Error(name + ' 在无 Key 本应 ok:false');
-    if (!/Key|DSH_STEAM_API_KEY/i.test(String(r.summary))) throw new Error(name + ' 缺少可操作的指引');
+    if (r.ok) {
+      // 有 Key 且能解析到 steamid 时允许成功
+      continue;
+    }
+    if (!/Key|DSH_STEAM_API_KEY|steamid|vanity/i.test(String(r.summary))) {
+      throw new Error(name + ' 失败时应给出 Key 或 steamid 指引');
+    }
   }
 
   // 16) steam_media：截图/预告片
@@ -255,11 +260,32 @@ async function main() {
   if (typeof dlc.total !== 'number') throw new Error('dlc 缺 total');
   if (dlc.items.some((x) => typeof x.appid !== 'number')) throw new Error('dlc 条目缺 appid');
 
-  // 18) steam_achievement_schema：无 Key 时降级
+  // 18) steam_achievement_schema：无 Key 降级；有 Key 验形状
+  const hasKey = Boolean(process.env.DSH_STEAM_API_KEY);
   const schema = await tools.get('steam_achievement_schema').execute({ appid: 4115450 }, {});
   console.log('\n[steam_achievement_schema] ok=' + schema.ok + ' :: ' + String(schema.summary).slice(0, 40));
-  if (schema.ok !== false) throw new Error('无 Key 时应 ok:false');
-  if (!/Key|DSH_STEAM_API_KEY/i.test(String(schema.summary))) throw new Error('缺少 Key 指引');
+  if (hasKey) {
+    if (!schema.ok) throw new Error('有 Key 时 steam_achievement_schema 应成功：' + schema.summary);
+    if (!Array.isArray(schema.achievements) || schema.achievements.length === 0) {
+      throw new Error('schema.achievements 应非空');
+    }
+  } else {
+    if (schema.ok !== false) throw new Error('无 Key 时应 ok:false');
+    if (!/Key|DSH_STEAM_API_KEY/i.test(String(schema.summary))) throw new Error('缺少 Key 指引');
+  }
+
+  // 19/20) steam_recent + steam_level：有 Key 时验形状，无 Key 时验优雅降级
+  console.log('\n--- Key 工具（hasKey=' + hasKey + '）---');
+  for (const name of ['steam_recent', 'steam_level']) {
+    const r = await tools.get(name).execute({}, {});
+    console.log('[' + name + '] ok=' + r.ok + ' :: ' + String(r.summary).split('\n')[0].slice(0, 60));
+    if (r.ok) {
+      if (name === 'steam_recent' && !Array.isArray(r.items)) throw new Error('recent 缺 items');
+      if (name === 'steam_level' && typeof r.level !== 'number') throw new Error('level 不是数字');
+    } else {
+      if (!/Key|DSH_STEAM_API_KEY/i.test(String(r.summary))) throw new Error(name + ' 缺少 Key 指引');
+    }
+  }
 
   await rm(TMP, { recursive: true, force: true });
   console.log('\n✅ 自检通过');
