@@ -73,6 +73,8 @@
     导致条目数、占用空间**全部翻倍**。
   - 游戏条目按 `appid` 去重（多库残留同一 appid 时只保留一条）。
   - 判定口径不变，但去重是前置条件：先去重，再统计。
+- **进度语义（v0.4.0 修正）**：`progressPercent` 只在 `downloading === true` 时给数值；
+  非下载中（含 needsUpdate / 已安装）一律为 `null`。不要用 100 表示“没在下载”。
 
 ### 3.5 `steam_install`
 - 入参：`appid`（integer，必填）、`dryRun`（boolean）
@@ -86,6 +88,20 @@
 - 需要 Web API Key：优先插件配置 `config.apiKey`，其次环境变量 `DSH_STEAM_API_KEY`
 - 无 Key → `ok:false` + 申请指引（不抛错）
 - 有 Key 且返回 0 个游戏 → `ok:false` + 提示“资料可能未设为公开”
+
+### 3.7 `steam_deals`（v0.4.0 新增）
+- 目的：回答“今天有什么值得买”，供每日定时推送使用。**不需要 API Key**。
+- 数据源：`store.steampowered.com/api/featuredcategories?cc=<cc>&l=schinese`
+- 入参：`mode`（string，`specials` | `top` | `new`，默认 `specials`）、`limit`（integer，默认 10，上限 30）、`cc`
+- 出参：`{ ok, cc, mode, items[], summary }`
+- `items[i]`：`{ appid, name, finalCents, initialCents, discountPercent, currency, storeUrl }`
+  - 价格字段单位为「分」；无价格（免费/未发售）时 `finalCents: null`
+  - `discountPercent` 用 `original_price/final_price` 自行计算，不依赖接口给的字段
+- 行为要求：
+  - `mode` 非法 → `ok:false` + 列出可选值，不抛错
+  - 接口返回空列表 → `ok:true` + `items:[]` + 说明性 summary（不算失败）
+  - `specials` 模式默认只保留 `discountPercent > 0` 的条目
+- summary 示例：`今日特惠 10 个：· 侠盗猎车手V ¥74.50（-50%）`
 
 ## 4. 价格历史存储
 

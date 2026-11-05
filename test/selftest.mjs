@@ -96,7 +96,7 @@ async function main() {
   const names = [...tools.keys()].sort();
   console.log('导出的插件名:', mod.name);
   console.log('注册的工具:', names.join(', '));
-  if (names.length !== 6) throw new Error('工具数量不对，期望 6 个');
+  if (names.length !== 7) throw new Error('工具数量不对，期望 7 个（v0.4.0 新增 steam_deals）');
 
   // 1) steam_price 真跑
   const price = await tools.get('steam_price').execute({ appids: [730, 1245620] }, {});
@@ -145,9 +145,35 @@ async function main() {
   } else {
     console.log(dl.summary.split('\n').slice(0, 6).join('\n'));
     if (typeof dl.counts.total !== 'number') throw new Error('缺少 counts.total');
+    // SPEC 3.4：非下载中的条目 progressPercent 必须是 null（不能用 100 冒充）
+    const badProgress = [...(dl.needsUpdate ?? []), ...(dl.topBySize ?? [])]
+      .filter((x) => x.downloading !== true && x.progressPercent !== null);
+    if (badProgress.length > 0) {
+      throw new Error('progressPercent 语义错误：非下载中应为 null，实际有 ' + badProgress.length + ' 条不是');
+    }
+    console.log('progressPercent 语义：非下载中均为 null ✓');
   }
 
-  // 7) steam_watch 第二次：应能读到历史（firstSample 变 false）
+  // 7) steam_deals：今日特惠（公开接口，无需 Key）
+  const deals = await tools.get('steam_deals').execute({ mode: 'specials', limit: 5 }, {});
+  console.log('\n[steam_deals] ok=' + deals.ok + ' items=' + (deals.items?.length ?? 0));
+  console.log(deals.summary.split('\n').slice(0, 3).join('\n'));
+  if (!deals.ok) throw new Error('steam_deals 失败');
+  if (!deals.items?.length) throw new Error('steam_deals 没返回条目');
+  for (const d of deals.items) {
+    if (typeof d.appid !== 'number') throw new Error('deals 条目缺 appid');
+    if (typeof d.discountPercent !== 'number') throw new Error('deals 条目缺 discountPercent');
+  }
+  // specials 模式只应有打折的
+  if (deals.items.some((d) => d.discountPercent <= 0)) {
+    throw new Error('specials 模式返回了未打折的条目');
+  }
+  // 非法 mode 应优雅失败
+  const badMode = await tools.get('steam_deals').execute({ mode: 'nope' }, {});
+  if (badMode.ok !== false) throw new Error('非法 mode 应当 ok:false');
+  console.log('非法 mode 处理：' + badMode.summary.slice(0, 40));
+
+  // 8) steam_watch 第二次：应能读到历史（firstSample 变 false）
   const watch2 = await tools.get('steam_watch').execute({ appids: [1245620], minDiscount: 1 }, {});
   console.log('\n[steam_watch 二次] ok=' + watch2.ok + ' historySaved=' + watch2.historySaved);
   if (watch2.historySaved !== true) throw new Error('价格历史没写进去');

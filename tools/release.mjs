@@ -28,7 +28,7 @@ import { spawnSync } from 'node:child_process';
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const NODE = process.execPath;
 
-/** SPEC §3 规定的六个工具名（顺序无关）。 */
+/** SPEC §3 规定的工具名（顺序无关；v0.4.0 起含 steam_deals）。 */
 const REQUIRED_TOOLS = new Set([
   'steam_price',
   'steam_search',
@@ -36,6 +36,7 @@ const REQUIRED_TOOLS = new Set([
   'steam_download_status',
   'steam_install',
   'steam_library',
+  'steam_deals',
 ]);
 
 /** MAJOR.MINOR.PATCH only —— 拒绝 -rc / -final 等后缀（治理命名规则）。 */
@@ -175,7 +176,7 @@ function checkSelftest() {
   if (missing.length || extra.length || got.size !== REQUIRED_TOOLS.size) {
     fail(
       `工具名集合与 SPEC §3 不一致：实际=[${toolNames.join(', ')}]`,
-      `必须恰好是这 6 个（顺序无关）：${[...REQUIRED_TOOLS].sort().join(', ')}` +
+      `必须恰好是这 ${REQUIRED_TOOLS.size} 个（顺序无关）：${[...REQUIRED_TOOLS].sort().join(', ')}` +
         (missing.length ? `\n缺少：${missing.join(', ')}` : '') +
         (extra.length ? `\n多余：${extra.join(', ')}` : ''),
     );
