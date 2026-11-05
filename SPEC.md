@@ -103,6 +103,33 @@
   - `specials` 模式默认只保留 `discountPercent > 0` 的条目
 - summary 示例：`今日特惠 10 个：· 侠盗猎车手V ¥74.50（-50%）`
 
+### 3.8 `steam_specs`（v0.5.0 新增）
+- 目的：买之前看“我的机器带不带得动”。**不需要 API Key**。
+- 数据源：`store.steampowered.com/api/appdetails?appids=<id>&cc=<cc>&l=schinese` 的 `pc_requirements`
+- 入参：`appid`（integer，必填）、`cc`
+- 出参：`{ ok, appid, name, minimum, recommended, platforms }`
+- 处理要求：
+  - `pc_requirements.minimum` / `.recommended` 是 **HTML 字符串**，必须剥标签、合并多余空白后再返回
+  - 剥完仍为空 → 返回 `ok:true` 但字段为 `''` 并在 summary 说明“该游戏未提供配置要求”
+  - appid 无效或商店无数据 → `ok:false`
+
+### 3.9 `steam_news`（v0.5.0 新增）
+- 目的：游戏更新公告 / 补丁说明。**不需要 Key**。
+- 数据源：`api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=<id>&count=<n>&maxlength=<len>&format=json`
+- 入参：`appid`（integer，必填）、`count`（integer，默认 5，上限 20）、`maxLength`（integer，默认 200，上限 1000）
+- 出参：`{ ok, appid, items[] }`，`items[i] = { gid, title, date, url, feedname, summary }`
+  - `date` 用 ISO 8601（由 unix 秒转换）
+  - `url` 形如 `https://store.steampowered.com/news/app/<appid>/view/<gid>`
+  - `summary` 是去除 BBCode/HTML 后的纯文本，长度不超过 `maxLength`
+- 无新闻 → `ok:true` + `items:[]` + 说明
+
+### 3.10 `steam_price_history`（v0.5.0 新增）
+- 目的：看某个游戏我们记录过的价格轨迹与史低。**纯本地读取**，不联网。
+- 入参：`appid`（integer，必填）
+- 出参：`{ ok, appid, name, samples, lowestCents, lowestText, lowestDate, lastCents, lastText, history[] }`
+- 没有记录 → `ok:false` + 提示“还没记录过，先跑一次 steam_watch 或 steam_price”
+- 历史文件损坏 → 当空库处理
+
 ## 4. 价格历史存储
 
 - 默认路径：`~/.dsh/steam-price-history.json`

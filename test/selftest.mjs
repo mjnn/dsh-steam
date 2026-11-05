@@ -96,7 +96,7 @@ async function main() {
   const names = [...tools.keys()].sort();
   console.log('导出的插件名:', mod.name);
   console.log('注册的工具:', names.join(', '));
-  if (names.length !== 7) throw new Error('工具数量不对，期望 7 个（v0.4.0 新增 steam_deals）');
+  if (names.length !== 10) throw new Error('工具数量不对，期望 10 个（v0.5.0 新增 specs/news/price_history）');
 
   // 1) steam_price 真跑
   const price = await tools.get('steam_price').execute({ appids: [730, 1245620] }, {});
@@ -177,6 +177,34 @@ async function main() {
   const watch2 = await tools.get('steam_watch').execute({ appids: [1245620], minDiscount: 1 }, {});
   console.log('\n[steam_watch 二次] ok=' + watch2.ok + ' historySaved=' + watch2.historySaved);
   if (watch2.historySaved !== true) throw new Error('价格历史没写进去');
+
+  // 9) steam_specs：配置要求（HTML 必须剥干净）
+  const specs = await tools.get('steam_specs').execute({ appid: 4115450 }, {});
+  console.log('\n[steam_specs] ok=' + specs.ok + ' name=' + (specs.name ?? ''));
+  if (!specs.ok) throw new Error('steam_specs 失败');
+  if (typeof specs.minimum !== 'string') throw new Error('specs.minimum 不是字符串');
+  if (/<[a-z][^>]*>/i.test(specs.minimum) || /<[a-z][^>]*>/i.test(specs.recommended ?? '')) {
+    throw new Error('specs 里还有 HTML 标签没剥干净');
+  }
+  console.log('  最低配置前 60 字：' + specs.minimum.slice(0, 60));
+
+  // 10) steam_news：更新公告
+  const news = await tools.get('steam_news').execute({ appid: 4115450, count: 3, maxLength: 120 }, {});
+  console.log('\n[steam_news] ok=' + news.ok + ' items=' + (news.items?.length ?? 0));
+  if (!news.ok) throw new Error('steam_news 失败');
+  if (!news.items?.length) throw new Error('steam_news 没返回条目');
+  const n0 = news.items[0];
+  if (!n0.gid || !n0.title || !/^\d{4}-\d{2}-\d{2}/.test(n0.date)) throw new Error('news 条目字段不完整');
+  if (!/^https:\/\/store\.steampowered\.com\/news\/app\/4115450\/view\//.test(n0.url)) throw new Error('news.url 格式不对');
+  console.log('  最新：' + n0.date.slice(0, 10) + ' ' + n0.title.slice(0, 40));
+
+  // 11) steam_price_history：本地历史（前面 steam_watch 已经写过 1245620）
+  const hist = await tools.get('steam_price_history').execute({ appid: 1245620 }, {});
+  console.log('\n[steam_price_history] ok=' + hist.ok + ' samples=' + hist.samples);
+  if (!hist.ok) throw new Error('steam_price_history 失败：' + hist.summary);
+  if (!(hist.samples >= 1)) throw new Error('price_history 样本数不对');
+  if (typeof hist.lowestText !== 'string' || !hist.lowestText) throw new Error('price_history 缺 lowestText');
+  console.log('  史低：' + hist.lowestText + '（' + hist.lowestDate + '），样本 ' + hist.samples + ' 条');
 
   await rm(TMP, { recursive: true, force: true });
   console.log('\n✅ 自检通过');

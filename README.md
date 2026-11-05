@@ -13,6 +13,9 @@
 | `steam_search` | 否 | 按名字搜商店，把游戏名换成 appid |
 | `steam_watch` | 否 | 折扣监控 + 本地价格历史（判断是否刷新史低） |
 | `steam_deals` | 否 | 今日特惠 / 热销 / 新品榜（每日推送用） |
+| `steam_specs` | 否 | PC 最低/推荐配置（剥 HTML） |
+| `steam_news` | 否 | 游戏更新公告 / 补丁说明 |
+| `steam_price_history` | 否 | 本机观测价格轨迹与史低（纯本地） |
 | `steam_download_status` | 否 | 读本机 Steam 目录：安装/下载进度/待更新/磁盘剩余/体积排行 |
 | `steam_install` | 否 | 调 `steam://install/<appid>` 让 Steam 立刻开始下载 |
 | `steam_library` | 是 | 查账号游戏库、总时长、玩得最多的 Top N |
@@ -30,7 +33,7 @@
 2. 输入本仓库的**绝对路径**，或打好的包路径（把 `<repo>` 换成你本机的仓库根目录）：
    ```
    <repo>
-   <repo>\dsh-steam-0.4.0.tgz
+   <repo>\dsh-steam-0.5.0.tgz
    ```
 3. 确认识别到包名 `dsh-steam`，完成安装
 4. **重启 DSH** 让宿主加载插件
