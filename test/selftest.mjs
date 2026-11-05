@@ -287,6 +287,19 @@ async function main() {
     }
   }
 
+  // 21) B1 回归：有 Key + 本机 Steam 登录时，library 不传 steamid 必须 ok:true
+  if (hasKey) {
+    const libAuto = await tools.get('steam_library').execute({}, {});
+    console.log('\n[steam_library 空参自动 steamid] ok=' + libAuto.ok);
+    console.log(String(libAuto.summary).split('\n')[0].slice(0, 80));
+    if (!libAuto.ok) {
+      throw new Error(
+        '有 Key 且本机有 Steam 登录时，steam_library 不传 steamid 应 ok:true：' + libAuto.summary,
+      );
+    }
+    if (typeof libAuto.gameCount !== 'number') throw new Error('library 缺 gameCount');
+  }
+
   await rm(TMP, { recursive: true, force: true });
   console.log('\n✅ 自检通过');
 }

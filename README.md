@@ -44,7 +44,7 @@
 2. 输入本仓库的**绝对路径**，或打好的包路径（把 `<repo>` 换成你本机的仓库根目录）：
    ```
    <repo>
-   <repo>\dsh-steam-0.8.0.tgz
+   <repo>\dsh-steam-0.8.1.tgz
    ```
 3. 确认识别到包名 `dsh-steam`，完成安装
 4. **重启 DSH** 让宿主加载插件
@@ -59,14 +59,18 @@ pnpm add "<repo>" --dir "<dsh-profile-dir>"
 
 ## 配置
 
-| 字段 | 说明 |
+| 字段 / 环境变量 | 说明 |
 |---|---|
-| `apiKey` | Steam Web API Key，只有 `steam_library` 需要 |
-| `steamId` | SteamID64，省略则每次调用时传 `steamid` / `vanity` |
+| `apiKey` / `DSH_STEAM_API_KEY` | Steam Web API Key（账号类工具需要） |
+| `steamId` / `DSH_STEAM_ID` | SteamID64，**可省略**——会自动识别本机 Steam 最近登录账号 |
 | `cc` | 默认商店区域，缺省 `cn` |
+| `DSH_STEAM_HISTORY` | 价格历史文件路径（可选） |
 
-API Key 也可以放在环境变量 `DSH_STEAM_API_KEY` 里。
-申请地址：<https://steamcommunity.com/dev/apikey>（免费，域名随便填）。
+`steamid` 解析顺序：参数 → vanity → 插件配置 → `DSH_STEAM_ID` → 本机 `loginusers.vdf`（MostRecent=1）。
+
+申请 Key：<https://steamcommunity.com/dev/apikey>（免费，域名随便填）。
+
+运维与排障见 [`aidlc-docs/operations/operations.md`](aidlc-docs/operations/operations.md)。
 
 ## 已知限制
 
@@ -77,15 +81,12 @@ API Key 也可以放在环境变量 `DSH_STEAM_API_KEY` 里。
 
 ## 自检
 
-不安装也能验证：用一个桩替代 `@deepseek-ai/dsh-tools`，在临时目录里跑真实的网络请求。
-
 ```powershell
 node test\selftest.mjs
 ```
 
-预期输出 4 个工具注册成功、`steam_price` 返回真实价格、`steam_install --dryRun` 不真的启动 Steam。
+预期：21 个工具注册成功；有 Key 且本机已登录 Steam 时，`steam_library` 不传 steamid 也应成功。
 
 ## License
 
 MIT
-

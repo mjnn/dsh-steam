@@ -7,37 +7,31 @@
 | 项 | 值 |
 |---|---|
 | 名称 | dsh-steam |
-| 类型 | brownfield（在 v0.2.0 上重构） |
-| 当前版本 | 0.3.0 |
-| 工作区 | `C:\Users\87779\.dsh\im\projects\dsh-steam` |
+| 类型 | brownfield |
+| 当前版本 | 0.8.1 |
+| 工作区 | 仓库根（勿写死用户绝对路径） |
 | 角色 | 需求与验收：Coding Agent（DSH）· 实现：Cursor · 决策：用户 |
 
 ## 阶段进度
 
 | 阶段 | 状态 | 产物 |
 |---|---|---|
-| Inception · 需求 | ✅ 完成 | `inception/requirements/requirements.md`（源自 SPEC.md） |
-| Inception · 设计 | ✅ 完成 | `inception/application-design/components.md` |
-| Construction · 实现 | ✅ 完成 | `lib/**`（8 个模块） |
-| Construction · 构建与测试 | ✅ 完成 | `construction/build-and-test/build-and-test-summary.md` |
-| Operations | ⏳ 未开始（发布到 npm 后再补） |
+| Inception · 需求 | ✅ | `inception/requirements/requirements.md` |
+| Inception · 设计 | ✅ | `inception/application-design/components.md` |
+| Construction · 实现 | ✅ | `lib/**`（21 工具） |
+| Construction · 构建与测试 | ✅ | `construction/build-and-test/`、`test/`、`tools/release.mjs` |
+| Operations | ✅ | `operations/operations.md`、`CHANGELOG.md` |
 
-## Bolt 记录
+## Bolt 记录（摘要）
 
 | # | 日期 | 内容 | 结果 |
 |---|---|---|---|
-| B1 | 2026-11-05 | 从零实现 6 工具插件 v0.1.x | 装不上（参数格式 + inject）→ 修复 |
-| B2 | 2026-11-05 | v0.2.0 全绿 | 通过 |
-| B3 | 2026-11-05 | 重构重写 v0.3.0（Cursor 实现） | 首次验收驳回（库路径大小写导致数据翻倍）→ Cursor 修复 → 通过 |
-| B4 | 2026-11-05 | 引入 AI-DLC 物料与治理规则 | 本文件即为产物 |
+| B1–B3 | 2026-11-05 | v0.1→0.3 实现、翻倍 bug、治理 | ✅ |
+| … | 2026-11-05 | v0.4–0.8 扩工具面至 21 | ✅ |
+| B1' | 2026-11-05 | 统一 steamid 兜底（0.8.1） | 进行中 |
+| B4 | 2026-11-05 | Operations 物料 | 进行中 |
 
 ## 当前门禁
 
-- 发布前必须：`node test/selftest.mjs` 通过 + `release/<version>/manifest.json` 产出
-- 详见 `MATERIAL-GOVERNANCE.md` 第 7 节
-
-## 未决事项
-
-1. `steam_library` 需要 Steam Web API Key，尚未配置
-2. 尚未发布到 npm（包名 `dsh-steam` 可用）
-3. Operations 阶段（监控/回滚）待补
+- `node test/selftest.mjs` 通过 + `release/<version>/manifest.json`
+- 工具数 = 21；详见 `MATERIAL-GOVERNANCE.md` §7、`operations/operations.md`
