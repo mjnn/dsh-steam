@@ -1,0 +1,5 @@
+# dsh bundle patch: inserts this plugin into the profile's layer stack.
+# The host half registers the steam_* tools; there is no client half.
+- insert:
+    - id: dsh-steam
+      name: dsh-steam
