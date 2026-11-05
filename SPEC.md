@@ -168,6 +168,26 @@
 - 出参：`{ ok, count, appids[], items[] }`（`items` 用 `steam_price` 的数据补名称与价格，最多补 20 条，避免请求过多）
 - 无 Key / 空愿望单 → 分别给不同提示
 
+### 3.17 `steam_media`（v0.7.0，免 Key）
+- 数据源：appdetails 的 `screenshots[]` 与 `movies[]`
+- 入参：`appid`（必填）、`kind`（`screenshots` | `movies` | `all`，默认 `all`）、`limit`（默认 10，上限 30）
+- 出参：`{ ok, appid, screenshots[{id, thumbUrl, fullUrl}], movies[{id, name, thumbUrl, h264Url}] }`
+- 只返回 URL，不下载图片；`movies` 优先 `dash_h264`，缺失则 `hls_h264`，都没有则 `null`
+
+### 3.18 `steam_dlc`（v0.7.0，免 Key）
+- 数据源：appdetails 的 `dlc[]`（appid 数组）+ 逐条查价
+- 入参：`appid`（必填）、`limit`（默认 10，上限 30）
+- 出参：`{ ok, appid, total, items[{appid, name, finalText, discountPercent, storeUrl}] }`
+- 无 DLC → `ok:true` + `items:[]` + 说明
+- **请求量控制**：最多查 `limit` 条价格，剩下的只在 `total` 里体现
+
+### 3.19 `steam_achievement_schema`（v0.7.0，需 Key）
+- 目的：把 `steam_achievements_global` 返回的内部名（`ACH_066`）映射成中文名/描述
+- 数据源：`api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/?key=<k>&appid=<id>&l=schinese`
+- 出参：`{ ok, appid, gameName, achievements[{name, displayName, description, hidden, icon}] }`
+- 无 Key → `ok:false` + 指引（不抛错）
+- 注意：未拥有的游戏也能查 schema（只要游戏有成就）
+
 ## 4. 价格历史存储
 
 - 默认路径：`~/.dsh/steam-price-history.json`

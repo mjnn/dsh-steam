@@ -96,7 +96,7 @@ async function main() {
   const names = [...tools.keys()].sort();
   console.log('导出的插件名:', mod.name);
   console.log('注册的工具:', names.join(', '));
-  if (names.length !== 16) throw new Error('工具数量不对，期望 16 个（v0.6.0 新增 players/achievements_global/open/friends/achievements/wishlist）');
+  if (names.length !== 19) throw new Error('工具数量不对，期望 19 个（v0.7.0 新增 media/dlc/achievement_schema）');
 
   // 1) steam_price 真跑
   const price = await tools.get('steam_price').execute({ appids: [730, 1245620] }, {});
@@ -240,6 +240,26 @@ async function main() {
     if (r.ok !== false) throw new Error(name + ' 在无 Key 本应 ok:false');
     if (!/Key|DSH_STEAM_API_KEY/i.test(String(r.summary))) throw new Error(name + ' 缺少可操作的指引');
   }
+
+  // 16) steam_media：截图/预告片
+  const media = await tools.get('steam_media').execute({ appid: 4115450, kind: 'all', limit: 5 }, {});
+  console.log('\n[steam_media] ok=' + media.ok + ' shots=' + (media.screenshots?.length ?? 0) + ' movies=' + (media.movies?.length ?? 0));
+  if (!media.ok) throw new Error('steam_media 失败');
+  if (!media.screenshots?.length) throw new Error('media 无截图');
+  if (!/^https?:/.test(media.screenshots[0].fullUrl)) throw new Error('截图 URL 不合法');
+
+  // 17) steam_dlc：DLC 列表与价格（影之刃零有 1 个 DLC）
+  const dlc = await tools.get('steam_dlc').execute({ appid: 4115450, limit: 5 }, {});
+  console.log('\n[steam_dlc] ok=' + dlc.ok + ' total=' + dlc.total + ' items=' + (dlc.items?.length ?? 0));
+  if (!dlc.ok) throw new Error('steam_dlc 失败');
+  if (typeof dlc.total !== 'number') throw new Error('dlc 缺 total');
+  if (dlc.items.some((x) => typeof x.appid !== 'number')) throw new Error('dlc 条目缺 appid');
+
+  // 18) steam_achievement_schema：无 Key 时降级
+  const schema = await tools.get('steam_achievement_schema').execute({ appid: 4115450 }, {});
+  console.log('\n[steam_achievement_schema] ok=' + schema.ok + ' :: ' + String(schema.summary).slice(0, 40));
+  if (schema.ok !== false) throw new Error('无 Key 时应 ok:false');
+  if (!/Key|DSH_STEAM_API_KEY/i.test(String(schema.summary))) throw new Error('缺少 Key 指引');
 
   await rm(TMP, { recursive: true, force: true });
   console.log('\n✅ 自检通过');
