@@ -1,6 +1,9 @@
-﻿# dsh-steam
+# dsh-steam
 
 仓库：https://github.com/mjnn/dsh-steam
+
+[![npm](https://img.shields.io/npm/v/dsh-steam.svg)](https://www.npmjs.com/package/dsh-steam)
+[![ci](https://github.com/mjnn/dsh-steam/actions/workflows/ci.yml/badge.svg)](https://github.com/mjnn/dsh-steam/actions/workflows/ci.yml)
 
 给 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）用的 Steam 工具集。
 装好之后，父模型可以直接查价、查库、触发下载、盯折扣，不用再截图点鼠标。
@@ -34,9 +37,23 @@
 价格历史默认写在 `~/.dsh/steam-price-history.json`，可用环境变量 `DSH_STEAM_HISTORY` 覆盖路径。
 它记录的是**本插件观测到的价格**，不是 Steam 官方历史数据；首次运行时没有基线，第一天的价格会被当作「史低」。
 
+## 安装（推荐：npm）
+
+已经发布到 npm，直接按包名安装：
+
+```powershell
+# 作为 DSH 插件
+dsh plugin add dsh-steam
+
+# 或者全局安装（需要 dsh 命令行在 PATH 里）
+npm i -g dsh-steam
+```
+
+也可以从 [Releases](https://github.com/mjnn/dsh-steam/releases) 下载 tgz 后，用插件管理界面装载。
+
 ## 安装（本地路径）
 
-插件还没发布到 npm，用本地源码目录或 `node tools/release.mjs` 产出的 tgz 安装：
+调试或离线安装时，用本地源码目录或 `node tools/release.mjs` 产出的 tgz：
 
 **方式一：插件管理界面**
 
