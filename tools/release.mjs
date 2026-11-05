@@ -1,13 +1,13 @@
 /**
- * dsh-steam 发布脚本：校验 → 构建 → 出清单。
+ * dsh-steam 发布脚本：校验 → 构建 → 打包产物冒烟 → 出清单。
  *
  * 用法：node tools/release.mjs
- * 任一校验失败 → 退出码 1，且不产出任何发布物。
+ * 任一校验失败 → 退出码 1，且不产出 manifest（tgz 也不会落到项目根）。
  *
  * 规则见 aidlc-docs/MATERIAL-GOVERNANCE.md §2–§3、§6–§7。
  */
 
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   copyFileSync,
   cpSync,
@@ -22,13 +22,13 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const NODE = process.execPath;
 
-/** SPEC §3 规定的工具名（顺序无关；v0.8.0 = 21 个）。 */
+/** SPEC §3 规定的工具名（顺序无关；v0.8+ = 21 个）。 */
 const REQUIRED_TOOLS = new Set([
   'steam_price',
   'steam_search',
@@ -71,8 +71,8 @@ function sha256File(filePath) {
   return hash.digest('hex');
 }
 
-function listLibJs() {
-  const libDir = join(ROOT, 'lib');
+function listLibJs(root = ROOT) {
+  const libDir = join(root, 'lib');
   return readdirSync(libDir)
     .filter((f) => f.endsWith('.js'))
     .map((f) => join(libDir, f))
@@ -91,13 +91,12 @@ function listFilesRecursive(dir, base = dir) {
 }
 
 function run(cmd, args, opts = {}) {
-  const r = spawnSync(cmd, args, {
+  return spawnSync(cmd, args, {
     cwd: ROOT,
     encoding: 'utf8',
     env: process.env,
     ...opts,
   });
-  return r;
 }
 
 // ───────── 校验 ─────────
@@ -122,7 +121,6 @@ function checkVersion(pkg) {
     );
   }
   const tgzName = `dsh-steam-${version}.tgz`;
-  // 命名一致性：版本即文件名中间段，无额外修饰
   if (tgzName !== `dsh-steam-${version}.tgz` || /-(final|new|副本)/i.test(tgzName)) {
     fail(`发布物命名非法：${tgzName}`, '文件名必须是 dsh-steam-<MAJOR.MINOR.PATCH>.tgz');
   }
@@ -208,10 +206,7 @@ function checkSelftest() {
 }
 
 function scanLeaks() {
-  const targets = [
-    ...listLibJs(),
-    join(ROOT, 'README.md'),
-  ].filter((p) => existsSync(p));
+  const targets = [...listLibJs(), join(ROOT, 'README.md')].filter((p) => existsSync(p));
 
   const hits = [];
   for (const file of targets) {
@@ -219,10 +214,20 @@ function scanLeaks() {
     const lines = text.split(/\r?\n/);
     lines.forEach((line, i) => {
       if (PATH_LEAK.test(line)) {
-        hits.push({ file: relative(ROOT, file), line: i + 1, kind: '本机绝对路径', sample: line.trim().slice(0, 120) });
+        hits.push({
+          file: relative(ROOT, file),
+          line: i + 1,
+          kind: '本机绝对路径',
+          sample: line.trim().slice(0, 120),
+        });
       }
       if (SECRET_LEAK.test(line)) {
-        hits.push({ file: relative(ROOT, file), line: i + 1, kind: '疑似密钥', sample: line.trim().slice(0, 120) });
+        hits.push({
+          file: relative(ROOT, file),
+          line: i + 1,
+          kind: '疑似密钥',
+          sample: line.trim().slice(0, 120),
+        });
       }
     });
   }
@@ -259,14 +264,11 @@ function stagePackage() {
   return { staging, pkgDir };
 }
 
-function buildTgz(version, tgzName, pkgDir, staging) {
-  const tgzPath = join(ROOT, tgzName);
-  // 先写到临时文件，校验全过后才原子替换到项目根——失败路径保证「不产出发布物」
+/** 只打临时 tgz，成功验证后再落到项目根（失败不污染发布物）。 */
+function buildTgz(tgzName, pkgDir, staging) {
   const tmpTgz = join(staging, tgzName);
-
   const r = run('tar', ['-czf', tmpTgz, '-C', staging, 'package']);
   if (r.status !== 0) {
-    rmSync(staging, { recursive: true, force: true });
     fail(
       'tar 打包失败',
       `确认系统有 tar（Windows 10+ 自带 bsdtar）。stderr:\n${r.stderr || r.stdout || '(无输出)'}`,
@@ -283,16 +285,129 @@ function buildTgz(version, tgzName, pkgDir, staging) {
     };
   });
 
-  const tgzSha = sha256File(tmpTgz);
-  const tgzBytes = statSync(tmpTgz).size;
-
-  // 成功后才落到项目根
-  copyFileSync(tmpTgz, tgzPath);
-
-  return { tgzPath, tgzSha, tgzBytes, filesMeta };
+  return {
+    tmpTgz,
+    tgzSha: sha256File(tmpTgz),
+    tgzBytes: statSync(tmpTgz).size,
+    filesMeta,
+  };
 }
 
-function writeManifest(version, tgzName, tgzSha, filesMeta, toolNames, tests) {
+/**
+ * 闸门 7：验「用户真正会装到的」tgz，而不是工作副本。
+ * peer @deepseek-ai/dsh-tools 在包内用最小桩替代，才能 import apply。
+ */
+async function verifyPackedArtifact(tmpTgz, pkg) {
+  const extractDir = mkdtempSync(
+    join(tmpdir(), `dsh-steam-verify-${randomBytes(4).toString('hex')}-`),
+  );
+  try {
+    const untar = run('tar', ['-xzf', tmpTgz, '-C', extractDir]);
+    if (untar.status !== 0) {
+      fail(
+        '解压打包产物失败',
+        `tar -xzf 退出 ${untar.status}。stderr:\n${untar.stderr || untar.stdout || '(无输出)'}`,
+      );
+    }
+
+    const pkgRoot = join(extractDir, 'package');
+    if (!existsSync(pkgRoot)) {
+      fail('tgz 内缺少 package/ 前缀目录', '确认 tar 使用 -C staging package 打包');
+    }
+
+    // files 白名单里的每一项都必须在解压结果中存在
+    const filesField = Array.isArray(pkg.files) ? pkg.files : [];
+    for (const entry of filesField) {
+      const target = join(pkgRoot, entry);
+      if (!existsSync(target)) {
+        fail(
+          `打包产物缺少 package.json.files 条目：${entry}`,
+          `检查 staging / files 白名单是否漏拷。解压目录：${pkgRoot}`,
+        );
+      }
+    }
+
+    // 工作区 lib/*.js 必须全部进入 tgz（防止漏拷单个模块）
+    const workspaceLib = listLibJs(ROOT).map((p) => relative(join(ROOT, 'lib'), p).split(sep).join('/'));
+    for (const rel of workspaceLib) {
+      const packed = join(pkgRoot, 'lib', rel);
+      if (!existsSync(packed)) {
+        fail(
+          `打包产物缺少 lib 模块：lib/${rel}`,
+          '确认 stagePackage 递归拷贝了整个 lib/；不要从 files 白名单里漏掉 lib',
+        );
+      }
+    }
+
+    // peer 桩：真实安装时由宿主提供 @deepseek-ai/dsh-tools
+    const stubDir = join(pkgRoot, 'node_modules', '@deepseek-ai', 'dsh-tools');
+    mkdirSync(stubDir, { recursive: true });
+    writeFileSync(
+      join(stubDir, 'package.json'),
+      JSON.stringify({ name: '@deepseek-ai/dsh-tools', type: 'module', main: 'index.js' }),
+    );
+    writeFileSync(
+      join(stubDir, 'index.js'),
+      'export function defineTool(options) { return { ...options, __stub: true }; }\n',
+    );
+
+    const entry = join(pkgRoot, 'lib', 'index.js');
+    let mod;
+    try {
+      mod = await import(pathToFileURL(entry).href);
+    } catch (err) {
+      fail(
+        '无法 import 打包产物的 lib/index.js',
+        `用户安装后也会在这里炸。原因：${err?.message ?? err}`,
+      );
+    }
+
+    if (typeof mod.name !== 'string' || mod.name.trim() === '') {
+      fail('打包产物 export name 无效', 'lib/index.js 必须 export const name = 非空字符串');
+    }
+    if (!Array.isArray(mod.inject) || !mod.inject.includes('tools')) {
+      fail(
+        '打包产物 inject 缺少 tools',
+        '必须 export const inject = [\'tools\']，否则 cordis 报 cannot get property "tools" without inject',
+      );
+    }
+    if (typeof mod.apply !== 'function') {
+      fail('打包产物缺少 apply 函数', 'lib/index.js 必须 export function apply(ctx, config)');
+    }
+
+    const registered = [];
+    const ctx = {
+      tools: {
+        register(t) {
+          registered.push(t);
+          return () => {};
+        },
+      },
+      // cordis effect 注册卸载回调；冒烟时不要立刻执行（否则会 dispose）
+      effect(_fn) {},
+    };
+    try {
+      await mod.apply(ctx, {});
+    } catch (err) {
+      fail(
+        '打包产物 apply(ctx, {}) 抛错',
+        `无服务/空配置也应能注册工具。错误：${err?.message ?? err}`,
+      );
+    }
+    if (registered.length !== REQUIRED_TOOLS.size) {
+      fail(
+        `打包产物注册工具数 ${registered.length} ≠ ${REQUIRED_TOOLS.size}`,
+        `检查 register-*.js 是否都打进包；实际：${registered.map((t) => t?.name).join(', ')}`,
+      );
+    }
+
+    return { packedSmoke: true, toolCount: registered.length };
+  } finally {
+    rmSync(extractDir, { recursive: true, force: true });
+  }
+}
+
+function writeManifest(version, tgzName, tgzSha, filesMeta, toolNames, tests, verify) {
   const dir = join(ROOT, 'release', version);
   mkdirSync(dir, { recursive: true });
   const specPath = join(ROOT, 'SPEC.md');
@@ -313,6 +428,7 @@ function writeManifest(version, tgzName, tgzSha, filesMeta, toolNames, tests) {
     },
     tests,
     toolNames,
+    verify,
   };
 
   const out = join(dir, 'manifest.json');
@@ -328,7 +444,6 @@ function pruneOldTgz(keepVersion) {
       const version = f.match(/^dsh-steam-(\d+\.\d+\.\d+)\.tgz$/)[1];
       return { f, version, mtime: statSync(join(ROOT, f)).mtimeMs };
     })
-    // 按 semver 降序，同版本按 mtime
     .sort((a, b) => compareSemver(b.version, a.version) || b.mtime - a.mtime);
 
   const keep = new Set();
@@ -336,7 +451,6 @@ function pruneOldTgz(keepVersion) {
     if (keep.size >= 3) break;
     keep.add(item.f);
   }
-  // 当前刚构建的版本一定保留
   keep.add(`dsh-steam-${keepVersion}.tgz`);
 
   for (const item of tgzFiles) {
@@ -356,42 +470,50 @@ function compareSemver(a, b) {
   return 0;
 }
 
-function printSummary({ version, tgzName, tgzBytes, filesMeta, tgzSha, toolNames, elapsedMs }) {
+function printSummary({ version, tgzName, tgzBytes, filesMeta, tgzSha, toolNames, elapsedMs, verify }) {
   console.log('\n—— 发布摘要 ——');
   console.log(`版本：    ${version}`);
   console.log(`产物：    ${tgzName}（${(tgzBytes / 1024).toFixed(1)} KB，${filesMeta.length} 个文件）`);
   console.log(`sha256：  ${tgzSha.slice(0, 12)}…`);
   console.log(`工具：    ${toolNames.join(', ')}`);
   console.log(`自检耗时：${(elapsedMs / 1000).toFixed(2)} s`);
+  console.log(`verify：  packedSmoke=${verify.packedSmoke}, toolCount=${verify.toolCount}`);
   console.log(`清单：    release/${version}/manifest.json`);
 }
 
 // ───────── main ─────────
 
-function main() {
+async function main() {
   console.log(`dsh-steam release · root=${ROOT}`);
   console.log(`node=${NODE}`);
 
-  // 校验阶段：任何失败直接 exit(1)，此时尚未写入项目根 tgz / manifest
   const pkg = loadPackage();
   const { version, tgzName } = checkVersion(pkg);
   checkDependencies(pkg);
-  console.log(`✓ 版本 ${version}，依赖为空`);
+  console.log(`✓ [1/8] 版本 ${version}`);
+  console.log(`✓ [2/8] 依赖为空`);
 
   checkSyntax();
-  console.log(`✓ node --check lib/*.js`);
+  console.log(`✓ [3/8] node --check lib/*.js`);
 
   const { toolNames, tests, elapsedMs } = checkSelftest();
-  console.log(`✓ 自检通过，工具：${toolNames.join(', ')}`);
+  console.log(`✓ [4/8] 自检通过，工具 ${toolNames.length} 个`);
 
   scanLeaks();
-  console.log('✓ 无本机路径 / 疑似密钥泄漏');
+  console.log(`✓ [5/8] 无本机路径 / 疑似密钥泄漏`);
 
-  // 构建阶段
   const { staging, pkgDir } = stagePackage();
   let built;
+  let verify;
   try {
-    built = buildTgz(version, tgzName, pkgDir, staging);
+    built = buildTgz(tgzName, pkgDir, staging);
+    console.log(`✓ [6/8] 打包 ${tgzName}`);
+
+    verify = await verifyPackedArtifact(built.tmpTgz, pkg);
+    console.log(`✓ [7/8] 打包产物冒烟：toolCount=${verify.toolCount}`);
+
+    // 验证通过后才落到项目根
+    copyFileSync(built.tmpTgz, join(ROOT, tgzName));
   } finally {
     rmSync(staging, { recursive: true, force: true });
   }
@@ -403,7 +525,9 @@ function main() {
     built.filesMeta,
     toolNames,
     tests,
+    verify,
   );
+  console.log(`✓ [8/8] 写入 release/${version}/manifest.json`);
 
   pruneOldTgz(version);
 
@@ -415,16 +539,14 @@ function main() {
     tgzSha: built.tgzSha,
     toolNames,
     elapsedMs,
+    verify,
   });
   console.log(`\n✅ 发布完成 → ${manifestPath}`);
 }
 
-try {
-  main();
-} catch (err) {
-  // 未预期异常也走友好文案；不留下半成品的责任在各 fail()/finally
+main().catch((err) => {
   console.error(`\n❌ 发布脚本异常：${err?.message ?? err}`);
   console.error('   怎么修：查看上方堆栈，修掉后重跑 node tools/release.mjs');
   if (err?.stack) console.error(err.stack);
   process.exit(1);
-}
+});

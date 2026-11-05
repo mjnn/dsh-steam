@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-11-05
+
+### Added
+- `tools/release.mjs` packed-artifact smoke gate: extract the tgz, import `lib/index.js`, assert exports/`apply` registers 21 tools, and check `files` / `lib/*.js` completeness before writing the manifest
+
 ## [0.8.1] - 2026-11-05
 
 ### Fixed

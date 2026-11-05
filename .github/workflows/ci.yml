@@ -37,3 +37,7 @@ jobs:
       # 依赖公网商店接口；本机 Steam / API Key 缺失时 selftest 会显式 SKIP
       - name: Selftest
         run: node test/selftest.mjs
+
+      # 含打包产物冒烟（解压 tgz → import → apply 注册 21 工具）；无 Key 走降级分支
+      - name: Release (pack + packed smoke)
+        run: node tools/release.mjs

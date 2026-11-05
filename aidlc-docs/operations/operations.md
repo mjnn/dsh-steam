@@ -70,9 +70,10 @@ args.steamid → args.vanity → config.steamId → DSH_STEAM_ID → 本机 logi
 
 | 点 | 如何看 | 健康标准 |
 |---|---|---|
-| CI | GitHub Actions `ci.yml`（Node 22.x / 24.x） | push/PR 全绿 |
+| CI | GitHub Actions `ci.yml`（Node 22.x / 24.x） | push/PR 全绿（含 `node tools/release.mjs`） |
 | 自检 | `node test/selftest.mjs` | 退出码 0；工具数 **21** |
 | 去重单测 | `node --test test/*.test.mjs` | pass |
+| 打包产物冒烟 | `release.mjs` 闸门 7 / manifest.`verify` | `packedSmoke=true`；`toolCount=21` |
 | 发布清单 | `release/<ver>/manifest.json` | `tests.passed=true`；`toolNames.length===21` |
 | 包完整性 | manifest.`sha256` vs tgz | 一致 |
 | 自检耗时 | release 摘要 / 本地计时 | 通常数秒级；异常拉长查网络 |
