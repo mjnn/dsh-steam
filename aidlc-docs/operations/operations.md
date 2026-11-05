@@ -7,7 +7,7 @@
 
 ### 1.1 本地 tgz 安装（推荐）
 
-1. 在仓库根执行 `node tools/release.mjs`，得到 `dsh-steam-<version>.tgz`。
+1. 按发布顺序产出 tgz（见下），得到 `dsh-steam-<version>.tgz`。
 2. DSH → 设置 → 插件管理 → 安装，填入 tgz **绝对路径**；或：
    ```powershell
    pnpm add "<repo>\dsh-steam-<version>.tgz" --dir "<dsh-profile-dir>"
@@ -16,10 +16,21 @@
 
 也可直接安装源码目录（开发用）：路径指向仓库根即可。
 
+### 1.1.1 发布顺序（必遵）
+
+```
+改代码 → 测试 → 升版本号 → commit → git tag -a vX.Y.Z
+      → node tools/release.mjs（闸门 7 校验 tag）
+      → npm publish → 等 ~5 分钟 → 验证 registry
+      → GitHub Release + 附件
+```
+
+`release.mjs` 要求工作区干净且 HEAD 带 `v<version>`；CI 用 `ALLOW_UNTAGGED=1` 跳过 tag 检查。
+
 ### 1.2 版本升级
 
-1. 拉取 / 检出目标版本代码。
-2. 再跑 `node tools/release.mjs` 产出新 tgz。
+1. 拉取 / 检出目标版本代码（或对应 git tag）。
+2. 再跑 `node tools/release.mjs` 产出新 tgz（本地发布须已 commit + tag）。
 3. 用新 tgz 覆盖安装（或先卸旧版再装），重启 DSH。
 4. 对照 `release/<version>/manifest.json` 的 `toolNames.length`（应为 **21**）与 `sha256`。
 
@@ -70,10 +81,11 @@ args.steamid → args.vanity → config.steamId → DSH_STEAM_ID → 本机 logi
 
 | 点 | 如何看 | 健康标准 |
 |---|---|---|
-| CI | GitHub Actions `ci.yml`（Node 22.x / 24.x） | push/PR 全绿（含 `node tools/release.mjs`） |
+| CI | GitHub Actions `ci.yml`（Node 22.x / 24.x） | push/PR 全绿（含 `node tools/release.mjs`，`ALLOW_UNTAGGED=1`） |
 | 自检 | `node test/selftest.mjs` | 退出码 0；工具数 **21** |
 | 去重单测 | `node --test test/*.test.mjs` | pass |
-| 打包产物冒烟 | `release.mjs` 闸门 7 / manifest.`verify` | `packedSmoke=true`；`toolCount=21` |
+| Git 一致性 | `release.mjs` 闸门 7 | 工作区干净；HEAD 有 `v<version>` tag（或显式 SKIP） |
+| 打包产物冒烟 | `release.mjs` 闸门 8 / manifest.`verify` | `packedSmoke=true`；`toolCount=21` |
 | 发布清单 | `release/<ver>/manifest.json` | `tests.passed=true`；`toolNames.length===21` |
 | 包完整性 | manifest.`sha256` vs tgz | 一致 |
 | 自检耗时 | release 摘要 / 本地计时 | 通常数秒级；异常拉长查网络 |

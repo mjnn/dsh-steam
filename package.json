@@ -1,6 +1,6 @@
 {
   "name": "dsh-steam",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Steam toolkit for DeepSeek Harness: price/discount lookup, library and playtime, one-call install via the steam:// protocol, and a wishlist-ready discount watcher.",
   "license": "MIT",
   "type": "module",

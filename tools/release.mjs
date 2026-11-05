@@ -23,7 +23,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const NODE = process.execPath;
@@ -182,6 +182,18 @@ function checkSelftest() {
     .filter(Boolean)
     .sort();
 
+  return {
+    toolNames,
+    tests: {
+      cmd: 'node test/selftest.mjs',
+      passed: true,
+      finishedAt,
+    },
+    elapsedMs,
+  };
+}
+
+function checkToolNames(toolNames) {
   const got = new Set(toolNames);
   const missing = [...REQUIRED_TOOLS].filter((t) => !got.has(t));
   const extra = toolNames.filter((t) => !REQUIRED_TOOLS.has(t));
@@ -193,16 +205,64 @@ function checkSelftest() {
         (extra.length ? `\n多余：${extra.join(', ')}` : ''),
     );
   }
+  return [...REQUIRED_TOOLS].sort();
+}
 
-  return {
-    toolNames: [...REQUIRED_TOOLS].sort(),
-    tests: {
-      cmd: 'node test/selftest.mjs',
-      passed: true,
-      finishedAt,
-    },
-    elapsedMs,
-  };
+/** 跑 git；失败转成可读错误（不走 PATH 猜测，交给系统解析 git）。 */
+function git(args) {
+  try {
+    return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trimEnd();
+  } catch (err) {
+    const detail = [err?.stderr, err?.stdout, err?.message].filter(Boolean).join('\n').trim();
+    fail(
+      `git ${args.join(' ')} 失败`,
+      `确认本机已装 git 且仓库可读。详情：\n${detail || '(无输出)'}`,
+    );
+  }
+}
+
+/**
+ * 闸门 7：Git 一致性——工作区干净，且 HEAD 已打 v<version> tag。
+ * 无 .git 则 SKIP；ALLOW_UNTAGGED=1 只跳过 tag 检查。
+ */
+function checkGitConsistency(version) {
+  if (!existsSync(join(ROOT, '.git'))) {
+    console.log('○ [7/9] SKIP Git 一致性（无 .git，例如从 npm 包解压）');
+    return;
+  }
+
+  const status = git(['status', '--porcelain']);
+  if (status.trim() !== '') {
+    const dirty = status
+      .split(/\r?\n/)
+      .map((l) => l.trimEnd())
+      .filter(Boolean);
+    const shown = dirty.slice(0, 10);
+    const more = dirty.length > 10 ? `\n  …另有 ${dirty.length - 10} 条` : '';
+    fail(
+      '工作区不干净（有未提交改动）',
+      `先 commit 再发布。脏文件清单（最多 10 条）：\n${shown.map((l) => `  ${l}`).join('\n')}${more}`,
+    );
+  }
+
+  if (process.env.ALLOW_UNTAGGED === '1') {
+    console.log('○ [7/9] SKIP tag 检查（ALLOW_UNTAGGED=1）；工作区已干净');
+    return;
+  }
+
+  const expected = `v${version}`;
+  const tagsAtHead = git(['tag', '--points-at', 'HEAD'])
+    .split(/\r?\n/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (!tagsAtHead.includes(expected)) {
+    fail(
+      `HEAD 未打 tag ${expected}`,
+      `先执行：git tag -a ${expected} -m "dsh-steam ${version}"\n` +
+        `当前 HEAD 上的 tag：${tagsAtHead.length ? tagsAtHead.join(', ') : '(无)'}`,
+    );
+  }
+  console.log(`✓ [7/9] Git 一致性：工作区干净，HEAD 有 ${expected}`);
 }
 
 function scanLeaks() {
@@ -294,7 +354,7 @@ function buildTgz(tgzName, pkgDir, staging) {
 }
 
 /**
- * 闸门 7：验「用户真正会装到的」tgz，而不是工作副本。
+ * 闸门 8：验「用户真正会装到的」tgz，而不是工作副本。
  * peer @deepseek-ai/dsh-tools 在包内用最小桩替代，才能 import apply。
  */
 async function verifyPackedArtifact(tmpTgz, pkg) {
@@ -490,27 +550,31 @@ async function main() {
   const pkg = loadPackage();
   const { version, tgzName } = checkVersion(pkg);
   checkDependencies(pkg);
-  console.log(`✓ [1/8] 版本 ${version}`);
-  console.log(`✓ [2/8] 依赖为空`);
+  console.log(`✓ [1/9] 版本 ${version}`);
+  console.log(`✓ [2/9] 依赖为空`);
 
   checkSyntax();
-  console.log(`✓ [3/8] node --check lib/*.js`);
+  console.log(`✓ [3/9] node --check lib/*.js`);
 
-  const { toolNames, tests, elapsedMs } = checkSelftest();
-  console.log(`✓ [4/8] 自检通过，工具 ${toolNames.length} 个`);
+  const self = checkSelftest();
+  console.log(`✓ [4/9] 自检通过，解析到工具 ${self.toolNames.length} 个`);
+
+  const toolNames = checkToolNames(self.toolNames);
+  console.log(`✓ [5/9] 工具名集合正确（${toolNames.length}）`);
 
   scanLeaks();
-  console.log(`✓ [5/8] 无本机路径 / 疑似密钥泄漏`);
+  console.log(`✓ [6/9] 无本机路径 / 疑似密钥泄漏`);
+
+  // 闸门 7 在打包前：早失败、少浪费
+  checkGitConsistency(version);
 
   const { staging, pkgDir } = stagePackage();
   let built;
   let verify;
   try {
     built = buildTgz(tgzName, pkgDir, staging);
-    console.log(`✓ [6/8] 打包 ${tgzName}`);
-
     verify = await verifyPackedArtifact(built.tmpTgz, pkg);
-    console.log(`✓ [7/8] 打包产物冒烟：toolCount=${verify.toolCount}`);
+    console.log(`✓ [8/9] 打包 + 产物冒烟：${tgzName}，toolCount=${verify.toolCount}`);
 
     // 验证通过后才落到项目根
     copyFileSync(built.tmpTgz, join(ROOT, tgzName));
@@ -524,10 +588,10 @@ async function main() {
     built.tgzSha,
     built.filesMeta,
     toolNames,
-    tests,
+    self.tests,
     verify,
   );
-  console.log(`✓ [8/8] 写入 release/${version}/manifest.json`);
+  console.log(`✓ [9/9] 写入 release/${version}/manifest.json`);
 
   pruneOldTgz(version);
 
@@ -538,7 +602,7 @@ async function main() {
     filesMeta: built.filesMeta,
     tgzSha: built.tgzSha,
     toolNames,
-    elapsedMs,
+    elapsedMs: self.elapsedMs,
     verify,
   });
   console.log(`\n✅ 发布完成 → ${manifestPath}`);

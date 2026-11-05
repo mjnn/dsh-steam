@@ -38,6 +38,8 @@ jobs:
       - name: Selftest
         run: node test/selftest.mjs
 
-      # 含打包产物冒烟（解压 tgz → import → apply 注册 21 工具）；无 Key 走降级分支
+      # 含打包产物冒烟；CI 无发布 tag，跳过闸门 7 的 tag 检查（脏工作区仍会失败）
       - name: Release (pack + packed smoke)
+        env:
+          ALLOW_UNTAGGED: "1"
         run: node tools/release.mjs

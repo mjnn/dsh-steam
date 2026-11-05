@@ -53,7 +53,7 @@ npm i -g dsh-steam
 
 ## 安装（本地路径）
 
-调试或离线安装时，用本地源码目录或 `node tools/release.mjs` 产出的 tgz：
+调试或离线安装时，用本地源码目录或 `node tools/release.mjs` 产出的 tgz（发布顺序：commit → tag → release）：
 
 **方式一：插件管理界面**
 
@@ -61,7 +61,7 @@ npm i -g dsh-steam
 2. 输入本仓库的**绝对路径**，或打好的包路径（把 `<repo>` 换成你本机的仓库根目录）：
    ```
    <repo>
-   <repo>\dsh-steam-0.9.0.tgz
+   <repo>\dsh-steam-0.9.1.tgz
    ```
 3. 确认识别到包名 `dsh-steam`，完成安装
 4. **重启 DSH** 让宿主加载插件
