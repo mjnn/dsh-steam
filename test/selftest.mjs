@@ -96,7 +96,7 @@ async function main() {
   const names = [...tools.keys()].sort();
   console.log('导出的插件名:', mod.name);
   console.log('注册的工具:', names.join(', '));
-  if (names.length !== 10) throw new Error('工具数量不对，期望 10 个（v0.5.0 新增 specs/news/price_history）');
+  if (names.length !== 16) throw new Error('工具数量不对，期望 16 个（v0.6.0 新增 players/achievements_global/open/friends/achievements/wishlist）');
 
   // 1) steam_price 真跑
   const price = await tools.get('steam_price').execute({ appids: [730, 1245620] }, {});
@@ -205,6 +205,41 @@ async function main() {
   if (!(hist.samples >= 1)) throw new Error('price_history 样本数不对');
   if (typeof hist.lowestText !== 'string' || !hist.lowestText) throw new Error('price_history 缺 lowestText');
   console.log('  史低：' + hist.lowestText + '（' + hist.lowestDate + '），样本 ' + hist.samples + ' 条');
+
+  // 12) steam_players：当前在线人数（免 Key）
+  const players = await tools.get('steam_players').execute({ appid: 4115450 }, {});
+  console.log('\n[steam_players] ok=' + players.ok + ' count=' + players.playerCount);
+  if (!players.ok) throw new Error('steam_players 失败：' + players.summary);
+  if (typeof players.playerCount !== 'number' || players.playerCount <= 0) throw new Error('playerCount 不合理');
+
+  // 13) steam_achievements_global：全球成就完成率（免 Key）
+  const ga = await tools.get('steam_achievements_global').execute({ appid: 4115450, limit: 5 }, {});
+  console.log('\n[steam_achievements_global] ok=' + ga.ok + ' items=' + (ga.items?.length ?? 0));
+  if (!ga.ok) throw new Error('steam_achievements_global 失败');
+  if (!ga.items?.length) throw new Error('全球成就为空');
+  if (typeof ga.items[0].percent !== 'number') throw new Error('percent 不是数字');
+  if (ga.items.some((x, i, arr) => i > 0 && x.percent < arr[i-1].percent)) throw new Error('未按 percent 升序');
+  console.log('  最难：' + ga.items[0].name + ' ' + ga.items[0].percent + '%');
+
+  // 14) steam_open：白名单 + dryRun
+  const open1 = await tools.get('steam_open').execute({ target: '4115450', dryRun: true }, {});
+  console.log('\n[steam_open] ok=' + open1.ok + ' uri=' + open1.uri + ' launched=' + open1.launched);
+  if (!open1.ok) throw new Error('steam_open 失败');
+  if (open1.launched !== false) throw new Error('dryRun 不该真的唤起');
+  if (!/^steam:\/\/store\/4115450$/.test(open1.uri)) throw new Error('store URI 不对');
+  const open2 = await tools.get('steam_open').execute({ target: 'run:730', dryRun: true }, {});
+  if (!/^steam:\/\/run\/730$/.test(open2.uri)) throw new Error('run URI 不对');
+  const bad = await tools.get('steam_open').execute({ target: 'url:https://evil.example.com/x', dryRun: true }, {});
+  if (bad.ok !== false) throw new Error('非白名单域名必须拒绝');
+  console.log('  非白名单被拒：' + bad.summary.slice(0, 40));
+
+  // 15) 三个需 Key 的工具：无 Key 时必须 ok:false 且给出指引（不强求成功）
+  for (const name of ['steam_friends', 'steam_achievements', 'steam_wishlist']) {
+    const r = await tools.get(name).execute(name === 'steam_achievements' ? { appid: 730 } : {}, {});
+    console.log('\n[' + name + '] ok=' + r.ok + ' :: ' + String(r.summary).slice(0, 50));
+    if (r.ok !== false) throw new Error(name + ' 在无 Key 本应 ok:false');
+    if (!/Key|DSH_STEAM_API_KEY/i.test(String(r.summary))) throw new Error(name + ' 缺少可操作的指引');
+  }
 
   await rm(TMP, { recursive: true, force: true });
   console.log('\n✅ 自检通过');

@@ -130,6 +130,44 @@
 - 没有记录 → `ok:false` + 提示“还没记录过，先跑一次 steam_watch 或 steam_price”
 - 历史文件损坏 → 当空库处理
 
+### 3.11 `steam_players`（v0.6.0，免 Key）
+- 数据源：`api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=<id>`（**免 Key，已实测返回 484676**）
+- 入参：`appid`（integer，必填）
+- 出参：`{ ok, appid, playerCount, summary }`
+- `result !== 1` 或 appid 无效 → `ok:false`
+
+### 3.12 `steam_achievements_global`（v0.6.0，免 Key）
+- 数据源：`api.steampowered.com/ISteamUserStats/GetGlobalAchievementPercentagesForApp/v2/?gameid=<id>`（免 Key）
+- 入参：`appid`（integer，必填）、`limit`（integer，默认 10）
+- 出参：`{ ok, appid, items[{name, percent}], summary }`
+- 按 `percent` **升序**（最难的成就排前面），`percent` 转成数字
+
+### 3.13 `steam_open`（v0.6.0，免 Key）
+- 目的：用 `steam://` 协议唤起客户端做“打开商店页 / 运行游戏 / 打开库页面”。
+- 入参：`target`（string，必填）、`dryRun`（boolean）
+- `target` 支持三种写法：
+  - 纯数字 → 视为 appid，打开商店页 `steam://store/<appid>`
+  - `run:<appid>` → `steam://run/<appid>`（启动游戏）
+  - `url:<https://store.steampowered.com/...>` → 仅允许 `store.steampowered.com` 域，其他一律拒绝
+- 安全：**必须白名单校验**，不接受任意 URI scheme（防 `steam://` 之外的注入）
+- `dryRun:true` 只返回将打开的 URI，不真的唤起
+
+### 3.14 `steam_friends`（v0.6.0，需 Key）
+- 数据源：`ISteamUser/GetFriendList/v1/?key=<k>&steamid=<id>&relationship=friend` + `GetPlayerSummaries`
+- 入参：`steamid`（可省略，用 config）
+- 无 Key → `ok:false` + 指引（不抛错）
+- 出参：`{ ok, count, friends[{steamid, personaName, state, inGame}] }`，`inGame` 为当前游戏名或 null
+
+### 3.15 `steam_achievements`（v0.6.0，需 Key）
+- 数据源：`ISteamUserStats/GetPlayerAchievements/v1/?key=<k>&steamid=<s>&appid=<a>&l=schinese`
+- 出参：`{ ok, appid, total, unlocked, items[{apiname, name, achieved, unlockTime}] }`
+- 无 Key 或未拥有该游戏 → `ok:false` + 可读原因
+
+### 3.16 `steam_wishlist`（v0.6.0，需 Key）
+- 数据源：`IWishlistService/GetWishlist/v1/?key=<k>&steamid=<s>`
+- 出参：`{ ok, count, appids[], items[] }`（`items` 用 `steam_price` 的数据补名称与价格，最多补 20 条，避免请求过多）
+- 无 Key / 空愿望单 → 分别给不同提示
+
 ## 4. 价格历史存储
 
 - 默认路径：`~/.dsh/steam-price-history.json`

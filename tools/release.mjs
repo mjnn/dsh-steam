@@ -28,7 +28,7 @@ import { spawnSync } from 'node:child_process';
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const NODE = process.execPath;
 
-/** SPEC §3 规定的工具名（顺序无关；v0.5.0 = 10 个）。 */
+/** SPEC §3 规定的工具名（顺序无关；v0.6.0 = 16 个）。 */
 const REQUIRED_TOOLS = new Set([
   'steam_price',
   'steam_search',
@@ -40,6 +40,12 @@ const REQUIRED_TOOLS = new Set([
   'steam_specs',
   'steam_news',
   'steam_price_history',
+  'steam_players',
+  'steam_achievements_global',
+  'steam_open',
+  'steam_friends',
+  'steam_achievements',
+  'steam_wishlist',
 ]);
 
 /** MAJOR.MINOR.PATCH only —— 拒绝 -rc / -final 等后缀（治理命名规则）。 */

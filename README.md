@@ -16,9 +16,15 @@
 | `steam_specs` | 否 | PC 最低/推荐配置（剥 HTML） |
 | `steam_news` | 否 | 游戏更新公告 / 补丁说明 |
 | `steam_price_history` | 否 | 本机观测价格轨迹与史低（纯本地） |
+| `steam_players` | 否 | 当前在线人数 |
+| `steam_achievements_global` | 否 | 全球成就完成率（升序，最难在前） |
+| `steam_open` | 否 | `steam://` 打开商店 / 运行游戏（白名单） |
 | `steam_download_status` | 否 | 读本机 Steam 目录：安装/下载进度/待更新/磁盘剩余/体积排行 |
 | `steam_install` | 否 | 调 `steam://install/<appid>` 让 Steam 立刻开始下载 |
 | `steam_library` | 是 | 查账号游戏库、总时长、玩得最多的 Top N |
+| `steam_friends` | 是 | 好友列表与在线状态 |
+| `steam_achievements` | 是 | 个人成就进度 |
+| `steam_wishlist` | 是 | 愿望单 + 补价 |
 
 价格历史默认写在 `~/.dsh/steam-price-history.json`，可用环境变量 `DSH_STEAM_HISTORY` 覆盖路径。
 它记录的是**本插件观测到的价格**，不是 Steam 官方历史数据；首次运行时没有基线，第一天的价格会被当作「史低」。
@@ -33,7 +39,7 @@
 2. 输入本仓库的**绝对路径**，或打好的包路径（把 `<repo>` 换成你本机的仓库根目录）：
    ```
    <repo>
-   <repo>\dsh-steam-0.5.0.tgz
+   <repo>\dsh-steam-0.6.0.tgz
    ```
 3. 确认识别到包名 `dsh-steam`，完成安装
 4. **重启 DSH** 让宿主加载插件
